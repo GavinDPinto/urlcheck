@@ -24,18 +24,24 @@ func main() {
 		log.Fatal(err)
 	}
 
+	jobs := make(chan string)
 	results := make(chan Result)
 	var wg sync.WaitGroup
 	client := &http.Client{Timeout: 5 * time.Second}
 
+	const numWorkers = 5
+
 	start := time.Now()
-	for _, url := range urls {
+	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			results <- check(url, client)
-		}()
+		go worker(client, jobs, results, &wg)
 	}
+	go func() {
+		for _, url := range urls {
+			jobs <- url
+		}
+		close(jobs)
+	}()
 	go func() {
 		wg.Wait()
 		close(results)
@@ -49,7 +55,14 @@ func main() {
 	}
 	duration := time.Since(start)
 
-	fmt.Println("Checking all URLs concurrently took a total time of:", duration)
+	fmt.Printf("Checking all %d URLs with %d workers took a total time of %s.", len(urls), numWorkers, duration)
+}
+
+func worker(client *http.Client, jobs <-chan string, results chan<- Result, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for url := range jobs {
+		results <- check(url, client)
+	}
 }
 
 func readURLs(path string) ([]string, error) {
