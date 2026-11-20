@@ -1,0 +1,13 @@
+# Should be UP
+https://go.dev
+https://github.com
+https://kubernetes.io
+
+# Should be DOWN: server error
+https://httpbin.org/status/500
+
+# Should be DOWN: takes 10s to answer, longer than the timeout
+https://httpbin.org/delay/10
+
+# Should be DOWN: domain doesn't exist
+https://does-not-exist.invalid
