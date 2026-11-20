@@ -18,28 +18,46 @@ type Result struct {
 }
 
 func main() {
-	file, err := os.Open("urls.txt")
+	urls, err := readURLs("urls.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" && !strings.HasPrefix(line, "#") {
-			fmt.Println(line)
+	start := time.Now()
+	for _, url := range urls {
+		result := check(url)
+		if result.err != nil {
+			fmt.Println(result.url, "ERROR:", result.err)
+		} else {
+			fmt.Println(result.url, result.status, result.duration)
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+	duration := time.Since(start)
+
+	fmt.Println("Checking all URLs one-by-one took a total time of:", duration)
+}
+
+func readURLs(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading URL list: %w", err)
+	}
+	defer file.Close()
+
+	var urls []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		url := strings.TrimSpace(scanner.Text())
+		if url != "" && !strings.HasPrefix(url, "#") {
+			urls = append(urls, url)
+		}
 	}
 
-	test1 := check("https://go.dev")
-	fmt.Println(test1.url, test1.status, test1.duration)
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("reading URL list: %w", err)
+	}
 
-	test2 := check("https://does-not-exist.invalid")
-	fmt.Println(test2.url, test2.status, test2.duration)
+	return urls, nil
 }
 
 func check(url string) Result {
