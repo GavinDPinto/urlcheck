@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,9 +24,23 @@ func main() {
 		log.Fatal(err)
 	}
 
+	results := make(chan Result)
+	var wg sync.WaitGroup
+	client := &http.Client{Timeout: 5 * time.Second}
+
 	start := time.Now()
 	for _, url := range urls {
-		result := check(url)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results <- check(url, client)
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+	for result := range results {
 		if result.err != nil {
 			fmt.Println(result.url, "ERROR:", result.err)
 		} else {
@@ -34,7 +49,7 @@ func main() {
 	}
 	duration := time.Since(start)
 
-	fmt.Println("Checking all URLs one-by-one took a total time of:", duration)
+	fmt.Println("Checking all URLs concurrently took a total time of:", duration)
 }
 
 func readURLs(path string) ([]string, error) {
@@ -60,9 +75,7 @@ func readURLs(path string) ([]string, error) {
 	return urls, nil
 }
 
-func check(url string) Result {
-	client := &http.Client{Timeout: 5 * time.Second}
-
+func check(url string, client *http.Client) Result {
 	start := time.Now()
 	resp, err := client.Get(url)
 	duration := time.Since(start)
