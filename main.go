@@ -18,8 +18,8 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.TrimSpace(line) != "" && !strings.HasPrefix(line, "#") {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" && !strings.HasPrefix(line, "#") {
 			fmt.Println(line)
 		}
 	}
