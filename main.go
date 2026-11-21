@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,7 +20,19 @@ type Result struct {
 }
 
 func main() {
-	urls, err := readURLs("urls.txt")
+	var filePath string
+	var numWorkers int
+	var timeout time.Duration
+	flag.StringVar(&filePath, "file", "urls.txt", "relative path to file with urls")
+	flag.IntVar(&numWorkers, "workers", 5, "size of worker pool")
+	flag.DurationVar(&timeout, "timeout", 5*time.Second, "timeout for GET requests")
+	flag.Parse()
+
+	if numWorkers < 1 {
+		log.Fatal("-workers must be at least 1")
+	}
+
+	urls, err := readURLs(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -27,9 +40,7 @@ func main() {
 	jobs := make(chan string)
 	results := make(chan Result)
 	var wg sync.WaitGroup
-	client := &http.Client{Timeout: 5 * time.Second}
-
-	const numWorkers = 5
+	client := &http.Client{Timeout: timeout}
 
 	start := time.Now()
 	for i := 0; i < numWorkers; i++ {
@@ -46,16 +57,26 @@ func main() {
 		wg.Wait()
 		close(results)
 	}()
+	down := 0
 	for result := range results {
 		if result.err != nil {
-			fmt.Println(result.url, "ERROR:", result.err)
+			fmt.Printf("%-5s %-4s %8v  %s %s\n", "DOWN", "-", result.duration.Round(time.Millisecond), result.url, result.err)
+			down++
+		} else if result.status >= 200 && result.status <= 399 {
+			fmt.Printf("%-5s %-4d %8v  %s\n", "UP", result.status, result.duration.Round(time.Millisecond), result.url)
 		} else {
-			fmt.Println(result.url, result.status, result.duration)
+			fmt.Printf("%-5s %-4d %8v  %s\n", "DOWN", result.status, result.duration.Round(time.Millisecond), result.url)
+			down++
 		}
 	}
 	duration := time.Since(start)
 
-	fmt.Printf("Checking all %d URLs with %d workers took a total time of %s.", len(urls), numWorkers, duration)
+	fmt.Printf("Checking all %d URLs with %d worker(s) took a total time of %s.\n", len(urls), numWorkers, duration)
+	fmt.Printf("Summary: %d of %d down.\n", down, len(urls))
+
+	if down > 0 {
+		os.Exit(1)
+	}
 }
 
 func worker(client *http.Client, jobs <-chan string, results chan<- Result, wg *sync.WaitGroup) {

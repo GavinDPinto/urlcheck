@@ -2,6 +2,7 @@
 https://go.dev
 https://github.com
 https://kubernetes.io
+https://gavinpinto.ca
 
 # Should be DOWN: server error
 https://httpbin.org/status/500
